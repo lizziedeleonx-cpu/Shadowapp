@@ -130,12 +130,10 @@ class MainActivity : Activity() {
             boton("Inicio") { mostrarInicio() },
             LinearLayout.LayoutParams(0, 52, 1f)
         )
-
         navegacion.addView(
             boton("Grupos") { mostrarGrupos() },
             LinearLayout.LayoutParams(0, 52, 1f)
         )
-
         navegacion.addView(
             boton("Historial") { mostrarHistorial() },
             LinearLayout.LayoutParams(0, 52, 1f)
@@ -182,11 +180,7 @@ class MainActivity : Activity() {
         val campana = tarjeta()
         campana.addView(texto("💬 Nueva campaña", 20f, morado, true))
         campana.addView(
-            texto(
-                "Escribe y guarda el mensaje que quieres preparar.",
-                14f,
-                suave
-            )
+            texto("Escribe y guarda el mensaje que quieres preparar.", 14f, suave)
         )
 
         editorMensaje = EditText(this).apply {
@@ -266,7 +260,6 @@ class MainActivity : Activity() {
                 suave
             )
         )
-
         contenido.addView(tareas)
         espacio(contenido, 16)
 
@@ -276,7 +269,6 @@ class MainActivity : Activity() {
             14f,
             suave
         )
-
         contenido.addView(estado)
     }
 
@@ -285,8 +277,9 @@ class MainActivity : Activity() {
 
         raiz.addView(
             texto(
-                "Abre WhatsApp para buscar el grupo. Después vuelve aquí " +
-                    "y guarda su nombre y, si lo tienes, el enlace de invitación.",
+                "Abre WhatsApp, entra al grupo y vuelve aquí. " +
+                    "Después pulsa Detectar grupo. Solo se podrá detectar " +
+                    "el texto que Android exponga al servicio.",
                 14f,
                 suave
             )
@@ -294,7 +287,11 @@ class MainActivity : Activity() {
 
         raiz.addView(boton("📲 Abrir WhatsApp") { abrirWhatsApp() })
         espacio(raiz, 8)
-        raiz.addView(boton("＋ Añadir grupo") { dialogoNuevoGrupo() })
+        raiz.addView(boton("🔎 Detectar grupo") { detectarGrupo() })
+        espacio(raiz, 8)
+        raiz.addView(
+            boton("＋ Añadir grupo manualmente") { dialogoNuevoGrupo() }
+        )
         espacio(raiz, 16)
 
         val grupos = leerGrupos()
@@ -313,15 +310,15 @@ class MainActivity : Activity() {
 
             if (enlace.isNotBlank()) {
                 tarjetaGrupo.addView(texto(enlace, 13f, suave))
-
                 tarjetaGrupo.addView(
                     boton("Abrir enlace") {
                         try {
-                            val intent = Intent(
-                                Intent.ACTION_VIEW,
-                                android.net.Uri.parse(enlace)
+                            startActivity(
+                                Intent(
+                                    Intent.ACTION_VIEW,
+                                    android.net.Uri.parse(enlace)
+                                )
                             )
-                            startActivity(intent)
                         } catch (_: Exception) {
                             aviso("No se pudo abrir ese enlace.")
                         }
@@ -343,6 +340,8 @@ class MainActivity : Activity() {
     }
 
     private fun abrirWhatsApp() {
+        preferencias.edit().remove("texto_detectado").apply()
+
         val paquetes = listOf("com.whatsapp.w4b", "com.whatsapp")
 
         for (paquete in paquetes) {
@@ -352,16 +351,96 @@ class MainActivity : Activity() {
                 try {
                     startActivity(intent)
                     guardarEstado(
-                        "WhatsApp abierto. Vuelve a ShadowApp para guardar el grupo."
+                        "WhatsApp abierto. Entra al grupo y vuelve a ShadowApp."
                     )
                     return
                 } catch (_: Exception) {
-                    // Intenta abrir la otra versión de WhatsApp.
+                    // Intenta con la otra versión.
                 }
             }
         }
 
-        aviso("No encontramos WhatsApp instalado en este teléfono.")
+        aviso("No encontramos WhatsApp ni WhatsApp Business instalado.")
+    }
+
+    private fun detectarGrupo() {
+        val bruto = preferencias.getString("texto_detectado", "") ?: ""
+
+        val candidatos = bruto.split("\n")
+            .map { it.trim() }
+            .filter { it.length in 2..80 }
+            .distinct()
+            .filterNot {
+                it.equals("WhatsApp", true) ||
+                it.equals("WhatsApp Business", true) ||
+                it.equals("Buscar", true) ||
+                it.equals("Search", true) ||
+                it.equals("Videollamada", true) ||
+                it.equals("Llamada", true) ||
+                it.equals("Más opciones", true) ||
+                it.equals("Escribe un mensaje", true)
+            }
+
+        if (candidatos.isEmpty()) {
+            aviso(
+                "No hay textos detectados todavía. Activa el servicio de " +
+                    "accesibilidad de ShadowApp en Ajustes, abre WhatsApp, " +
+                    "entra al grupo y vuelve aquí. Si WhatsApp no expone el " +
+                    "nombre del grupo, tendrás que añadirlo manualmente."
+            )
+            return
+        }
+
+        var seleccionado = 0
+
+        AlertDialog.Builder(this)
+            .setTitle("Elige el nombre del grupo")
+            .setMessage(
+                "Selecciona el texto que corresponde al nombre del grupo."
+            )
+            .setSingleChoiceItems(candidatos.toTypedArray(), 0) { _, cual ->
+                seleccionado = cual
+            }
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Guardar grupo") { _, _ ->
+                val nombre = candidatos.getOrNull(seleccionado)
+                    ?.trim()
+                    .orEmpty()
+
+                if (nombre.isBlank()) {
+                    aviso("No se seleccionó un nombre válido.")
+                } else {
+                    guardarGrupo(nombre, "")
+                }
+            }
+            .show()
+    }
+
+    private fun guardarGrupo(nombreGrupo: String, enlaceGrupo: String) {
+        val grupos = leerGrupos()
+
+        for (i in 0 until grupos.length()) {
+            val existente = grupos.optJSONObject(i)
+                ?.optString("nombre", "")
+                ?: ""
+
+            if (existente.equals(nombreGrupo, ignoreCase = true)) {
+                aviso("Ese grupo ya está guardado en ShadowApp.")
+                return
+            }
+        }
+
+        grupos.put(
+            JSONObject().apply {
+                put("nombre", nombreGrupo)
+                put("enlace", enlaceGrupo)
+            }
+        )
+
+        preferencias.edit().putString("grupos", grupos.toString()).apply()
+        guardarEstado("Grupo añadido: $nombreGrupo")
+        aviso("Grupo guardado: $nombreGrupo")
+        mostrarGrupos()
     }
 
     private fun dialogoNuevoGrupo() {
@@ -383,21 +462,9 @@ class MainActivity : Activity() {
         formulario.addView(nombre)
         formulario.addView(enlace)
 
-        formulario.addView(
-            texto(
-                "WhatsApp no envía automáticamente el nombre del grupo " +
-                    "a ShadowApp. Regresa aquí para guardarlo.",
-                13f,
-                suave
-            )
-        )
-
         AlertDialog.Builder(this)
             .setTitle("Añadir grupo")
             .setView(formulario)
-            .setNeutralButton("Abrir WhatsApp") { _, _ ->
-                abrirWhatsApp()
-            }
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Guardar") { _, _ ->
                 val nombreGrupo = nombre.text.toString().trim()
@@ -416,21 +483,7 @@ class MainActivity : Activity() {
                     return@setPositiveButton
                 }
 
-                val grupos = leerGrupos()
-
-                grupos.put(
-                    JSONObject().apply {
-                        put("nombre", nombreGrupo)
-                        put("enlace", enlaceGrupo)
-                    }
-                )
-
-                preferencias.edit()
-                    .putString("grupos", grupos.toString())
-                    .apply()
-
-                guardarEstado("Grupo añadido: $nombreGrupo")
-                mostrarGrupos()
+                guardarGrupo(nombreGrupo, enlaceGrupo)
             }
             .show()
     }
@@ -507,7 +560,6 @@ class MainActivity : Activity() {
             setBackgroundColor(fondo)
             addView(vista)
         }
-
         setContentView(scroll)
     }
 
