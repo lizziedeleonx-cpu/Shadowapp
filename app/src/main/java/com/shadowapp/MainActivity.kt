@@ -175,21 +175,18 @@ class MainActivity : Activity() {
         ).show()
     }
 
-    private fun openWhatsAppBusiness() {
-        val launchIntent =
-            packageManager.getLaunchIntentForPackage("com.whatsapp.w4b")
+    
+private fun openWhatsAppBusiness() {
+    val intent = packageManager
+        .getLaunchIntentForPackage("com.whatsapp.w4b")
 
-        if (launchIntent != null) {
-            startActivity(launchIntent)
-        } else {
-            startActivity(
-                Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse(
-                        "https://play.google.com/store/apps/details?id=com.whatsapp.w4b"
-                    )
-                )
-            )
-        }
+    if (intent != null) {
+        startActivity(intent)
+    } else {
+        Toast.makeText(
+            this,
+            "No se encontró WhatsApp Business instalado.",
+            Toast.LENGTH_LONG
+        ).show()
     }
 }
