@@ -6,10 +6,12 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -20,17 +22,28 @@ import org.json.JSONObject
 class MainActivity : Activity() {
 
     private val fondo = Color.rgb(18, 15, 29)
-    private val tarjeta = Color.rgb(35, 29, 51)
+    private val tarjetaColor = Color.rgb(35, 29, 51)
     private val morado = Color.rgb(174, 117, 255)
     private val blanco = Color.WHITE
     private val suave = Color.rgb(195, 187, 213)
 
-    private lateinit var contenido: LinearLayout
-    private lateinit var editorMensaje: EditText
-    private lateinit var estado: TextView
-
     private val preferencias by lazy {
         getSharedPreferences("shadowapp_datos", MODE_PRIVATE)
+    }
+
+    private var archivoUri: Uri? = null
+    private var archivoNombre = ""
+    private var editorMensaje: EditText? = null
+    private var seleccionados = mutableSetOf<String>()
+    private val casillas = mutableMapOf<String, CheckBox>()
+
+    companion object {
+        private const val ELEGIR_ARCHIVO = 701
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        mostrarInicio()
     }
 
     private fun leerGrupos(): JSONArray {
@@ -41,21 +54,8 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun guardarEstado(texto: String) {
-        preferencias.edit().putString("estado", texto).apply()
-        if (::estado.isInitialized) estado.text = texto
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        mostrarInicio()
-    }
-
-    private fun crearColumna(): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(20, 18, 20, 24)
-        }
+    private fun guardarEstado(mensaje: String) {
+        preferencias.edit().putString("estado", mensaje).apply()
     }
 
     private fun texto(
@@ -79,14 +79,22 @@ class MainActivity : Activity() {
     ): Button {
         return Button(this).apply {
             text = titulo
-            setTextColor(blanco)
             isAllCaps = false
+            setTextColor(blanco)
             background = GradientDrawable().apply {
-                setColor(tarjeta)
+                setColor(tarjetaColor)
                 cornerRadius = 22f
                 setStroke(2, morado)
             }
             setOnClickListener { accion() }
+        }
+    }
+
+    private fun columna(): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(20, 18, 20, 24)
+            setBackgroundColor(fondo)
         }
     }
 
@@ -95,7 +103,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(16, 12, 16, 14)
             background = GradientDrawable().apply {
-                setColor(tarjeta)
+                setColor(tarjetaColor)
                 cornerRadius = 24f
             }
         }
@@ -105,207 +113,80 @@ class MainActivity : Activity() {
         vista.addView(View(this), LinearLayout.LayoutParams(1, alto))
     }
 
-    private fun mostrarInicio() {
-        val raiz = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(fondo)
-        }
-
-        val cabecera = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(22, 18, 22, 12)
-        }
-
-        cabecera.addView(texto("SHADOWAPP", 28f, morado, true))
-        cabecera.addView(texto("Tu espacio de campañas", 15f, suave))
-        raiz.addView(cabecera)
-
-        val navegacion = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(8, 0, 8, 8)
-        }
-
-        navegacion.addView(
-            boton("Inicio") { mostrarInicio() },
-            LinearLayout.LayoutParams(0, 52, 1f)
-        )
-        navegacion.addView(
-            boton("Grupos") { mostrarGrupos() },
-            LinearLayout.LayoutParams(0, 52, 1f)
-        )
-        navegacion.addView(
-            boton("Historial") { mostrarHistorial() },
-            LinearLayout.LayoutParams(0, 52, 1f)
-        )
-
-        raiz.addView(navegacion)
-
+    private fun mostrar(vista: LinearLayout) {
         val scroll = ScrollView(this)
-        contenido = crearColumna()
-        scroll.addView(contenido)
+        scroll.setBackgroundColor(fondo)
+        scroll.addView(vista)
+        setContentView(scroll)
+    }
 
+    private fun cabecera(titulo: String): LinearLayout {
+        val raiz = columna()
+        raiz.addView(texto("SHADOWAPP", 25f, morado, true))
+        raiz.addView(texto(titulo, 23f, blanco, true))
+        raiz.addView(boton("← Inicio") { mostrarInicio() })
+        espacio(raiz, 12)
+        return raiz
+    }
+
+    private fun aviso(mensaje: String) {
+        AlertDialog.Builder(this)
+            .setMessage(mensaje)
+            .setPositiveButton("Aceptar", null)
+            .show()
+    }
+
+    private fun mostrarInicio() {
+        val raiz = columna()
+        raiz.addView(texto("✨ ShadowApp", 28f, morado, true))
         raiz.addView(
-            scroll,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            )
+            texto("Organiza tus grupos y prepara tus campañas.", 16f, suave)
         )
 
-        setContentView(raiz)
+        espacio(raiz, 12)
+        raiz.addView(boton("👥 Administrar grupos") { mostrarGrupos() })
+        espacio(raiz, 8)
+        raiz.addView(boton("📤 Nueva campaña") { mostrarCampana() })
+        espacio(raiz, 8)
+        raiz.addView(boton("📊 Historial") { mostrarHistorial() })
 
-        contenido.addView(texto("✨ Panel principal", 23f, blanco, true))
-        contenido.addView(
+        espacio(raiz, 20)
+        raiz.addView(texto("Grupos guardados: ${leerGrupos().length()}", 16f))
+        raiz.addView(
             texto(
-                "Prepara tus mensajes y organiza tus grupos desde un solo lugar.",
-                15f,
-                suave
-            )
-        )
-
-        espacio(contenido)
-
-        val resumen = tarjeta()
-        resumen.addView(texto("👥 Mis grupos", 19f, morado, true))
-        resumen.addView(
-            texto("${leerGrupos().length()} grupos guardados", 15f, suave)
-        )
-        resumen.addView(boton("Administrar grupos") { mostrarGrupos() })
-        contenido.addView(resumen)
-
-        espacio(contenido, 16)
-
-        val campana = tarjeta()
-        campana.addView(texto("💬 Nueva campaña", 20f, morado, true))
-        campana.addView(
-            texto("Escribe y guarda el mensaje que quieres preparar.", 14f, suave)
-        )
-
-        editorMensaje = EditText(this).apply {
-            setTextColor(blanco)
-            setHintTextColor(suave)
-            hint = "Escribe tu mensaje aquí..."
-            textSize = 16f
-            gravity = Gravity.TOP
-            minLines = 4
-            setPadding(12, 12, 12, 12)
-            setBackgroundColor(Color.rgb(49, 41, 66))
-            setText(preferencias.getString("mensaje", "") ?: "")
-        }
-
-        campana.addView(
-            editorMensaje,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        espacio(campana)
-
-        campana.addView(
-            boton("💾 Guardar mensaje") {
-                val mensaje = editorMensaje.text.toString().trim()
-
-                if (mensaje.isEmpty()) {
-                    aviso("Escribe un mensaje antes de guardarlo.")
-                } else {
-                    preferencias.edit().putString("mensaje", mensaje).apply()
-                    guardarEstado("Mensaje guardado correctamente.")
-                    aviso("¡Mensaje guardado! 💜")
-                }
-            }
-        )
-
-        espacio(campana)
-
-        campana.addView(
-            boton("📤 Preparar envío") {
-                val mensaje = editorMensaje.text.toString().trim()
-
-                if (mensaje.isEmpty()) {
-                    aviso("Primero escribe un mensaje.")
-                } else {
-                    preferencias.edit().putString("mensaje", mensaje).apply()
-
-                    val compartir = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, mensaje)
-                    }
-
-                    startActivity(
-                        Intent.createChooser(
-                            compartir,
-                            "Compartir mensaje con..."
-                        )
-                    )
-
-                    guardarEstado("Mensaje preparado para compartir.")
-                }
-            }
-        )
-
-        contenido.addView(campana)
-        espacio(contenido, 16)
-
-        val tareas = tarjeta()
-        tareas.addView(texto("⏱️ Programación", 19f, morado, true))
-        tareas.addView(
-            texto(
-                "Esta versión permite preparar y guardar mensajes. " +
-                    "La programación de tareas se añadirá más adelante.",
+                preferencias.getString("estado", "Todo listo para comenzar.")
+                    ?: "Todo listo para comenzar.",
                 14f,
                 suave
             )
         )
-        contenido.addView(tareas)
-        espacio(contenido, 16)
 
-        estado = texto(
-            preferencias.getString("estado", "Todo listo para comenzar.")
-                ?: "Todo listo para comenzar.",
-            14f,
-            suave
-        )
-        contenido.addView(estado)
+        mostrar(raiz)
     }
 
     private fun mostrarGrupos() {
-        val raiz = crearPantalla("👥 Mis grupos")
+        val raiz = cabecera("👥 Mis grupos")
 
         raiz.addView(
-            texto(
-                "Abre WhatsApp, entra al grupo y vuelve aquí. " +
-                    "Después pulsa Detectar grupo. Solo se podrá detectar " +
-                    "el texto que Android exponga al servicio.",
-                14f,
-                suave
-            )
+            boton("＋ Añadir grupo manualmente") {
+                dialogoNuevoGrupo()
+            }
         )
-
-        raiz.addView(boton("📲 Abrir WhatsApp") { abrirWhatsApp() })
-        espacio(raiz, 8)
-        raiz.addView(boton("🔎 Detectar grupo") { detectarGrupo() })
-        espacio(raiz, 8)
-        raiz.addView(
-            boton("＋ Añadir grupo manualmente") { dialogoNuevoGrupo() }
-        )
-        espacio(raiz, 16)
+        espacio(raiz, 12)
 
         val grupos = leerGrupos()
-
         if (grupos.length() == 0) {
-            raiz.addView(texto("Todavía no has añadido grupos.", 16f, suave))
+            raiz.addView(
+                texto("Todavía no hay grupos guardados.", 16f, suave)
+            )
         }
 
         for (i in 0 until grupos.length()) {
             val grupo = grupos.optJSONObject(i) ?: continue
             val nombre = grupo.optString("nombre", "Grupo")
             val enlace = grupo.optString("enlace", "")
-
             val tarjetaGrupo = tarjeta()
+
             tarjetaGrupo.addView(texto("👥 $nombre", 17f, blanco, true))
 
             if (enlace.isNotBlank()) {
@@ -314,13 +195,10 @@ class MainActivity : Activity() {
                     boton("Abrir enlace") {
                         try {
                             startActivity(
-                                Intent(
-                                    Intent.ACTION_VIEW,
-                                    android.net.Uri.parse(enlace)
-                                )
+                                Intent(Intent.ACTION_VIEW, Uri.parse(enlace))
                             )
                         } catch (_: Exception) {
-                            aviso("No se pudo abrir ese enlace.")
+                            aviso("No se pudo abrir el enlace.")
                         }
                     }
                 )
@@ -328,119 +206,31 @@ class MainActivity : Activity() {
 
             tarjetaGrupo.addView(
                 boton("Eliminar grupo") {
-                    confirmarEliminarGrupo(i, nombre)
+                    AlertDialog.Builder(this)
+                        .setTitle("Eliminar grupo")
+                        .setMessage("¿Quieres eliminar $nombre?")
+                        .setNegativeButton("Cancelar", null)
+                        .setPositiveButton("Eliminar") { _, _ ->
+                            val nuevos = JSONArray()
+                            for (j in 0 until grupos.length()) {
+                                if (j != i) nuevos.put(grupos.get(j))
+                            }
+                            preferencias.edit()
+                                .putString("grupos", nuevos.toString())
+                                .apply()
+                            seleccionados.remove(nombre)
+                            guardarEstado("Grupo eliminado: $nombre")
+                            mostrarGrupos()
+                        }
+                        .show()
                 }
             )
 
-            espacio(raiz, 12)
+            espacio(raiz, 10)
             raiz.addView(tarjetaGrupo)
         }
 
-        mostrarContenido(raiz)
-    }
-
-    private fun abrirWhatsApp() {
-        preferencias.edit().remove("texto_detectado").apply()
-
-        val paquetes = listOf("com.whatsapp.w4b", "com.whatsapp")
-
-        for (paquete in paquetes) {
-            val intent = packageManager.getLaunchIntentForPackage(paquete)
-
-            if (intent != null) {
-                try {
-                    startActivity(intent)
-                    guardarEstado(
-                        "WhatsApp abierto. Entra al grupo y vuelve a ShadowApp."
-                    )
-                    return
-                } catch (_: Exception) {
-                    // Intenta con la otra versión.
-                }
-            }
-        }
-
-        aviso("No encontramos WhatsApp ni WhatsApp Business instalado.")
-    }
-
-    private fun detectarGrupo() {
-        val bruto = preferencias.getString("texto_detectado", "") ?: ""
-
-        val candidatos = bruto.split("\n")
-            .map { it.trim() }
-            .filter { it.length in 2..80 }
-            .distinct()
-            .filterNot {
-                it.equals("WhatsApp", true) ||
-                it.equals("WhatsApp Business", true) ||
-                it.equals("Buscar", true) ||
-                it.equals("Search", true) ||
-                it.equals("Videollamada", true) ||
-                it.equals("Llamada", true) ||
-                it.equals("Más opciones", true) ||
-                it.equals("Escribe un mensaje", true)
-            }
-
-        if (candidatos.isEmpty()) {
-            aviso(
-                "No hay textos detectados todavía. Activa el servicio de " +
-                    "accesibilidad de ShadowApp en Ajustes, abre WhatsApp, " +
-                    "entra al grupo y vuelve aquí. Si WhatsApp no expone el " +
-                    "nombre del grupo, tendrás que añadirlo manualmente."
-            )
-            return
-        }
-
-        var seleccionado = 0
-
-        AlertDialog.Builder(this)
-            .setTitle("Elige el nombre del grupo")
-            .setMessage(
-                "Selecciona el texto que corresponde al nombre del grupo."
-            )
-            .setSingleChoiceItems(candidatos.toTypedArray(), 0) { _, cual ->
-                seleccionado = cual
-            }
-            .setNegativeButton("Cancelar", null)
-            .setPositiveButton("Guardar grupo") { _, _ ->
-                val nombre = candidatos.getOrNull(seleccionado)
-                    ?.trim()
-                    .orEmpty()
-
-                if (nombre.isBlank()) {
-                    aviso("No se seleccionó un nombre válido.")
-                } else {
-                    guardarGrupo(nombre, "")
-                }
-            }
-            .show()
-    }
-
-    private fun guardarGrupo(nombreGrupo: String, enlaceGrupo: String) {
-        val grupos = leerGrupos()
-
-        for (i in 0 until grupos.length()) {
-            val existente = grupos.optJSONObject(i)
-                ?.optString("nombre", "")
-                ?: ""
-
-            if (existente.equals(nombreGrupo, ignoreCase = true)) {
-                aviso("Ese grupo ya está guardado en ShadowApp.")
-                return
-            }
-        }
-
-        grupos.put(
-            JSONObject().apply {
-                put("nombre", nombreGrupo)
-                put("enlace", enlaceGrupo)
-            }
-        )
-
-        preferencias.edit().putString("grupos", grupos.toString()).apply()
-        guardarEstado("Grupo añadido: $nombreGrupo")
-        aviso("Grupo guardado: $nombreGrupo")
-        mostrarGrupos()
+        mostrar(raiz)
     }
 
     private fun dialogoNuevoGrupo() {
@@ -453,7 +243,6 @@ class MainActivity : Activity() {
             hint = "Nombre del grupo"
             setSingleLine(true)
         }
-
         val enlace = EditText(this).apply {
             hint = "Enlace de invitación (opcional)"
             setSingleLine(true)
@@ -467,106 +256,272 @@ class MainActivity : Activity() {
             .setView(formulario)
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Guardar") { _, _ ->
-                val nombreGrupo = nombre.text.toString().trim()
-                val enlaceGrupo = enlace.text.toString().trim()
+                val n = nombre.text.toString().trim()
+                val e = enlace.text.toString().trim()
 
-                if (nombreGrupo.isEmpty()) {
+                if (n.isBlank()) {
                     aviso("Escribe el nombre del grupo.")
                     return@setPositiveButton
                 }
 
-                if (enlaceGrupo.isNotEmpty() &&
-                    !enlaceGrupo.startsWith("https://") &&
-                    !enlaceGrupo.startsWith("http://")
+                if (e.isNotBlank() &&
+                    !e.startsWith("https://") &&
+                    !e.startsWith("http://")
                 ) {
-                    aviso("El enlace debe comenzar con https:// o http://")
+                    aviso("El enlace debe empezar con https:// o http://")
                     return@setPositiveButton
                 }
 
-                guardarGrupo(nombreGrupo, enlaceGrupo)
-            }
-            .show()
-    }
-
-    private fun confirmarEliminarGrupo(indice: Int, nombre: String) {
-        AlertDialog.Builder(this)
-            .setTitle("Eliminar grupo")
-            .setMessage("¿Quieres quitar \"$nombre\" de tu lista?")
-            .setNegativeButton("Cancelar", null)
-            .setPositiveButton("Eliminar") { _, _ ->
-                val antiguos = leerGrupos()
-                val nuevos = JSONArray()
-
-                for (i in 0 until antiguos.length()) {
-                    if (i != indice) {
-                        nuevos.put(antiguos.get(i))
+                val grupos = leerGrupos()
+                for (i in 0 until grupos.length()) {
+                    if (grupos.optJSONObject(i)
+                            ?.optString("nombre", "")
+                            ?.equals(n, true) == true
+                    ) {
+                        aviso("Ese grupo ya está guardado.")
+                        return@setPositiveButton
                     }
                 }
 
+                grupos.put(
+                    JSONObject().apply {
+                        put("nombre", n)
+                        put("enlace", e)
+                    }
+                )
                 preferencias.edit()
-                    .putString("grupos", nuevos.toString())
+                    .putString("grupos", grupos.toString())
                     .apply()
 
-                guardarEstado("Grupo eliminado: $nombre")
+                guardarEstado("Grupo añadido: $n")
                 mostrarGrupos()
             }
             .show()
     }
 
-    private fun mostrarHistorial() {
-        val raiz = crearPantalla("📊 Historial")
+    private fun mostrarCampana() {
+        val raiz = cabecera("📤 Nueva campaña")
+        seleccionados.clear()
+        casillas.clear()
 
-        raiz.addView(texto("Último estado registrado", 18f, morado, true))
+        raiz.addView(texto("1. Selecciona los grupos", 19f, morado, true))
+
+        val grupos = leerGrupos()
+        if (grupos.length() == 0) {
+            raiz.addView(
+                texto("Primero añade grupos en Mis grupos.", 15f, suave)
+            )
+            raiz.addView(
+                boton("Ir a Mis grupos") { mostrarGrupos() }
+            )
+            mostrar(raiz)
+            return
+        }
 
         raiz.addView(
-            texto(
-                preferencias.getString("estado", "Todavía no hay actividad.")
-                    ?: "Todavía no hay actividad.",
-                16f,
-                blanco
+            boton("☑ Seleccionar todos") {
+                casillas.forEach { (nombre, casilla) ->
+                    casilla.isChecked = true
+                    seleccionados.add(nombre)
+                }
+            }
+        )
+        raiz.addView(
+            boton("□ Desmarcar todos") {
+                casillas.forEach { (nombre, casilla) ->
+                    casilla.isChecked = false
+                    seleccionados.remove(nombre)
+                }
+            }
+        )
+
+        for (i in 0 until grupos.length()) {
+            val nombre = grupos.optJSONObject(i)
+                ?.optString("nombre", "Grupo") ?: continue
+
+            val casilla = CheckBox(this).apply {
+                text = nombre
+                textSize = 16f
+                setTextColor(blanco)
+                buttonTintList = android.content.res.ColorStateList.valueOf(morado)
+                setOnCheckedChangeListener { _, marcado ->
+                    if (marcado) seleccionados.add(nombre)
+                    else seleccionados.remove(nombre)
+                }
+            }
+
+            casillas[nombre] = casilla
+            raiz.addView(casilla)
+        }
+
+        espacio(raiz, 16)
+        raiz.addView(texto("2. Escribe el mensaje", 19f, morado, true))
+
+        val mensaje = EditText(this).apply {
+            setTextColor(blanco)
+            setHintTextColor(suave)
+            hint = "Texto que acompañará al archivo (opcional)"
+            textSize = 16f
+            minLines = 4
+            gravity = Gravity.TOP
+            setPadding(12, 12, 12, 12)
+            setBackgroundColor(Color.rgb(49, 41, 66))
+            setText(preferencias.getString("mensaje", "") ?: "")
+        }
+        editorMensaje = mensaje
+        raiz.addView(
+            mensaje,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
 
+        espacio(raiz, 12)
+        raiz.addView(texto("3. Adjunta contenido (opcional)", 19f, morado, true))
         raiz.addView(
             texto(
-                "El historial de esta primera versión muestra el último estado; " +
-                    "un registro detallado se añadirá después.",
+                "Puedes elegir imágenes, vídeos, GIF, PDF y otros archivos.",
+                14f,
+                suave
+            )
+        )
+        raiz.addView(boton("📎 Elegir archivo") { elegirArchivo() })
+        raiz.addView(
+            texto(
+                if (archivoNombre.isBlank()) "Ningún archivo seleccionado"
+                else "Adjunto: $archivoNombre",
                 14f,
                 suave
             )
         )
 
-        raiz.addView(boton("Volver al inicio") { mostrarInicio() })
-        mostrarContenido(raiz)
+        espacio(raiz, 16)
+        raiz.addView(
+            boton("📤 Preparar envío a grupos seleccionados") {
+                prepararEnvio(mensaje.text.toString().trim())
+            }
+        )
+
+        espacio(raiz, 8)
+        raiz.addView(
+            texto(
+                "Android puede abrir WhatsApp para compartir el contenido. " +
+                    "Debes elegir y confirmar cada destinatario que WhatsApp permita. " +
+                    "La selección de ShadowApp no selecciona automáticamente los grupos dentro de WhatsApp.",
+                13f,
+                suave
+            )
+        )
+
+        mostrar(raiz)
     }
 
-    private fun crearPantalla(titulo: String): LinearLayout {
-        val raiz = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(20, 18, 20, 24)
-            setBackgroundColor(fondo)
+    private fun elegirArchivo() {
+        val selector = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         }
 
-        raiz.addView(texto("SHADOWAPP", 25f, morado, true))
-        raiz.addView(texto(titulo, 23f, blanco, true))
-        raiz.addView(boton("← Volver al inicio") { mostrarInicio() })
-        espacio(raiz, 12)
-
-        return raiz
-    }
-
-    private fun mostrarContenido(vista: LinearLayout) {
-        val scroll = ScrollView(this).apply {
-            setBackgroundColor(fondo)
-            addView(vista)
+        try {
+            startActivityForResult(selector, ELEGIR_ARCHIVO)
+        } catch (_: Exception) {
+            aviso("No se pudo abrir el selector de archivos.")
         }
-        setContentView(scroll)
     }
 
-    private fun aviso(mensaje: String) {
-        AlertDialog.Builder(this)
-            .setMessage(mensaje)
-            .setPositiveButton("Aceptar", null)
-            .show()
+    @Deprecated("La API sigue siendo compatible con esta versión sencilla.")
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?
+    ) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode != ELEGIR_ARCHIVO ||
+            resultCode != RESULT_OK ||
+            data?.data == null
+        ) return
+
+        archivoUri = data.data
+        try {
+            val flags = data.flags and
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            contentResolver.takePersistableUriPermission(archivoUri!!, flags)
+        } catch (_: Exception) {
+            // Algunos proveedores no permiten permisos persistentes.
+        }
+
+        archivoNombre = archivoUri?.lastPathSegment ?: "Archivo seleccionado"
+        mostrarCampana()
+    }
+
+    private fun prepararEnvio(mensaje: String) {
+        if (seleccionados.isEmpty()) {
+            aviso("Selecciona al menos un grupo.")
+            return
+        }
+
+        val uri = archivoUri
+        if (mensaje.isBlank() && uri == null) {
+            aviso("Escribe un mensaje o selecciona un archivo.")
+            return
+        }
+
+        preferencias.edit().putString("mensaje", mensaje).apply()
+
+        val intent: Intent = if (uri != null) {
+            Intent(Intent.ACTION_SEND).apply {
+                setType(contentResolver.getType(uri) ?: "*/*")
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                if (mensaje.isNotBlank()) {
+                    putExtra(Intent.EXTRA_TEXT, mensaje)
+                }
+            }
+        } else {
+            Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, mensaje)
+            }
+        }
+
+        val lista = seleccionados.joinToString(", ")
+        guardarEstado(
+            "Campaña preparada para ${seleccionados.size} grupo(s): $lista. " +
+                "El envío aún debe confirmarse en la aplicación de destino."
+        )
+
+        try {
+            startActivity(
+                Intent.createChooser(intent, "Compartir contenido con...")
+            )
+        } catch (_: Exception) {
+            aviso("No se encontró una aplicación compatible para compartir.")
+        }
+    }
+
+    private fun mostrarHistorial() {
+        val raiz = cabecera("📊 Historial")
+        raiz.addView(texto("Último estado registrado", 18f, morado, true))
+        raiz.addView(
+            texto(
+                preferencias.getString("estado", "Todavía no hay actividad.")
+                    ?: "Todavía no hay actividad.",
+                15f,
+                suave
+            )
+        )
+        raiz.addView(
+            texto(
+                "El estado indica que se preparó una campaña; no verifica " +
+                    "que WhatsApp haya entregado los mensajes.",
+                14f,
+                suave
+            )
+        )
+        mostrar(raiz)
     }
 }
