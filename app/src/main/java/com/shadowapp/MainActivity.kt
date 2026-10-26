@@ -1,11 +1,12 @@
-
 package com.shadowapp
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -24,7 +25,7 @@ class MainActivity : Activity() {
 
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 36, 32, 24)
+            setPadding(24, 32, 24, 24)
             setBackgroundColor(0xFF101014.toInt())
         }
 
@@ -35,20 +36,25 @@ class MainActivity : Activity() {
         val scroll = ScrollView(this)
         scroll.addView(content)
 
-        content.addView(TextView(this).apply {
-            text = "SHADOWAPP"
-            textSize = 28f
-            gravity = Gravity.CENTER
-            setTextColor(0xFFE6D8FF.toInt())
-        })
+        content.addView(
+            TextView(this).apply {
+                text = "SHADOWAPP"
+                textSize = 28f
+                gravity = Gravity.CENTER
+                setTextColor(0xFFFFFFFF.toInt())
+                setPadding(0, 12, 0, 8)
+            }
+        )
 
-        content.addView(TextView(this).apply {
-            text = "Tu asistente de campañas"
-            textSize = 15f
-            gravity = Gravity.CENTER
-            setTextColor(0xFFC8C2D4.toInt())
-            setPadding(0, 8, 0, 24)
-        })
+        content.addView(
+            TextView(this).apply {
+                text = "Tu asistente de campañas"
+                textSize = 16f
+                gravity = Gravity.CENTER
+                setTextColor(0xFFCAC2D4.toInt())
+                setPadding(0, 0, 0, 24)
+            }
+        )
 
         content.addView(label("Nombre de la campaña"))
 
@@ -71,25 +77,43 @@ class MainActivity : Activity() {
         }
         content.addView(messageInput)
 
-        content.addView(Button(this).apply {
-            text = "Guardar campaña"
-            setOnClickListener { saveCampaign() }
+        content.addView(makeButton("Guardar campaña") {
+            saveCampaign()
         })
 
-        content.addView(Button(this).apply {
-            text = "Copiar mensaje"
-            setOnClickListener { copyMessage() }
+        content.addView(makeButton("Copiar mensaje") {
+            copyMessage()
         })
 
-        content.addView(Button(this).apply {
-            text = "Abrir WhatsApp Business"
-            setOnClickListener { openWhatsAppBusiness() }
+        content.addView(makeButton("Abrir WhatsApp Business") {
+            openWhatsAppBusiness()
         })
+
+        content.addView(
+            TextView(this).apply {
+                text = "MIS GRUPOS"
+                textSize = 20f
+                setTextColor(0xFFFFFFFF.toInt())
+                setPadding(0, 28, 0, 8)
+            }
+        )
+
+        content.addView(
+            TextView(this).apply {
+                text = "Esta versión permite preparar y copiar mensajes. "
+                    + "Todavía no sincroniza automáticamente tus grupos "
+                    + "de WhatsApp. Puedes abrir WhatsApp Business y "
+                    + "elegir manualmente dónde enviar tu mensaje."
+                textSize = 14f
+                setTextColor(0xFFCAC2D4.toInt())
+                setPadding(0, 0, 0, 16)
+            }
+        )
 
         status = TextView(this).apply {
             text = "Tus campañas se guardan en este teléfono."
             textSize = 14f
-            setTextColor(0xFFC8C2D4.toInt())
+            setTextColor(0xFFBFA8FF.toInt())
             setPadding(0, 20, 0, 12)
         }
         content.addView(status)
@@ -97,7 +121,7 @@ class MainActivity : Activity() {
         page.addView(
             scroll,
             LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
                 0,
                 1f
             )
@@ -107,11 +131,30 @@ class MainActivity : Activity() {
         loadCampaign()
     }
 
-    private fun label(value: String) = TextView(this).apply {
-        text = value
-        textSize = 15f
-        setTextColor(0xFFE6D8FF.toInt())
-        setPadding(0, 14, 0, 4)
+    private fun label(value: String): TextView {
+        return TextView(this).apply {
+            text = value
+            textSize = 15f
+            setTextColor(0xFFEFE6FF.toInt())
+            setPadding(0, 14, 0, 4)
+        }
+    }
+
+    private fun makeButton(
+        title: String,
+        action: () -> Unit
+    ): Button {
+        return Button(this).apply {
+            text = title
+            setOnClickListener { action() }
+
+            val params = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            params.setMargins(0, 8, 0, 4)
+            layoutParams = params
+        }
     }
 
     private fun saveCampaign() {
@@ -133,6 +176,7 @@ class MainActivity : Activity() {
             .apply()
 
         status.text = "Campaña guardada correctamente."
+
         Toast.makeText(
             this,
             "Campaña guardada",
@@ -159,13 +203,10 @@ class MainActivity : Activity() {
         }
 
         val clipboard = getSystemService(CLIPBOARD_SERVICE)
-            as android.content.ClipboardManager
+                as ClipboardManager
 
         clipboard.setPrimaryClip(
-            android.content.ClipData.newPlainText(
-                "Mensaje de ShadowApp",
-                message
-            )
+            ClipData.newPlainText("Mensaje de ShadowApp", message)
         )
 
         Toast.makeText(
@@ -175,18 +216,19 @@ class MainActivity : Activity() {
         ).show()
     }
 
-    
-private fun openWhatsAppBusiness() {
-    val intent = packageManager
-        .getLaunchIntentForPackage("com.whatsapp.w4b")
+    private fun openWhatsAppBusiness() {
+        val intent = packageManager
+            .getLaunchIntentForPackage("com.whatsapp.w4b")
 
-    if (intent != null) {
-        startActivity(intent)
-    } else {
-        Toast.makeText(
-            this,
-            "No se encontró WhatsApp Business instalado.",
-            Toast.LENGTH_LONG
-        ).show()
+        if (intent != null) {
+            startActivity(intent)
+        } else {
+            Toast.makeText(
+                this,
+                "No se encontró WhatsApp Business instalado.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 }
+
