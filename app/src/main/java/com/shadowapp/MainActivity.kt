@@ -117,10 +117,7 @@ class MainActivity : Activity() {
         }
 
         cabecera.addView(texto("SHADOWAPP", 28f, morado, true))
-        cabecera.addView(
-            texto("Tu espacio de campañas", 15f, suave)
-        )
-
+        cabecera.addView(texto("Tu espacio de campañas", 15f, suave))
         raiz.addView(cabecera)
 
         val navegacion = LinearLayout(this).apply {
@@ -133,10 +130,12 @@ class MainActivity : Activity() {
             boton("Inicio") { mostrarInicio() },
             LinearLayout.LayoutParams(0, 52, 1f)
         )
+
         navegacion.addView(
             boton("Grupos") { mostrarGrupos() },
             LinearLayout.LayoutParams(0, 52, 1f)
         )
+
         navegacion.addView(
             boton("Historial") { mostrarHistorial() },
             LinearLayout.LayoutParams(0, 52, 1f)
@@ -147,6 +146,7 @@ class MainActivity : Activity() {
         val scroll = ScrollView(this)
         contenido = crearColumna()
         scroll.addView(contenido)
+
         raiz.addView(
             scroll,
             LinearLayout.LayoutParams(
@@ -172,11 +172,7 @@ class MainActivity : Activity() {
         val resumen = tarjeta()
         resumen.addView(texto("👥 Mis grupos", 19f, morado, true))
         resumen.addView(
-            texto(
-                "${leerGrupos().length()} grupos guardados",
-                15f,
-                suave
-            )
+            texto("${leerGrupos().length()} grupos guardados", 15f, suave)
         )
         resumen.addView(boton("Administrar grupos") { mostrarGrupos() })
         contenido.addView(resumen)
@@ -186,7 +182,11 @@ class MainActivity : Activity() {
         val campana = tarjeta()
         campana.addView(texto("💬 Nueva campaña", 20f, morado, true))
         campana.addView(
-            texto("Escribe y guarda el mensaje que quieres preparar.", 14f, suave)
+            texto(
+                "Escribe y guarda el mensaje que quieres preparar.",
+                14f,
+                suave
+            )
         )
 
         editorMensaje = EditText(this).apply {
@@ -214,6 +214,7 @@ class MainActivity : Activity() {
         campana.addView(
             boton("💾 Guardar mensaje") {
                 val mensaje = editorMensaje.text.toString().trim()
+
                 if (mensaje.isEmpty()) {
                     aviso("Escribe un mensaje antes de guardarlo.")
                 } else {
@@ -229,27 +230,30 @@ class MainActivity : Activity() {
         campana.addView(
             boton("📤 Preparar envío") {
                 val mensaje = editorMensaje.text.toString().trim()
+
                 if (mensaje.isEmpty()) {
                     aviso("Primero escribe un mensaje.")
                 } else {
                     preferencias.edit().putString("mensaje", mensaje).apply()
+
                     val compartir = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, mensaje)
                     }
+
                     startActivity(
                         Intent.createChooser(
                             compartir,
                             "Compartir mensaje con..."
                         )
                     )
+
                     guardarEstado("Mensaje preparado para compartir.")
                 }
             }
         )
 
         contenido.addView(campana)
-
         espacio(contenido, 16)
 
         val tareas = tarjeta()
@@ -257,13 +261,13 @@ class MainActivity : Activity() {
         tareas.addView(
             texto(
                 "Esta versión permite preparar y guardar mensajes. " +
-                    "La programación de tareas se añadirá en una etapa posterior.",
+                    "La programación de tareas se añadirá más adelante.",
                 14f,
                 suave
             )
         )
-        contenido.addView(tareas)
 
+        contenido.addView(tareas)
         espacio(contenido, 16)
 
         estado = texto(
@@ -272,6 +276,7 @@ class MainActivity : Activity() {
             14f,
             suave
         )
+
         contenido.addView(estado)
     }
 
@@ -280,23 +285,22 @@ class MainActivity : Activity() {
 
         raiz.addView(
             texto(
-                "Guarda los nombres de tus grupos para tenerlos organizados. " +
-                    "La app no puede importar automáticamente todos tus grupos de WhatsApp.",
+                "Abre WhatsApp para buscar el grupo. Después vuelve aquí " +
+                    "y guarda su nombre y, si lo tienes, el enlace de invitación.",
                 14f,
                 suave
             )
         )
 
+        raiz.addView(boton("📲 Abrir WhatsApp") { abrirWhatsApp() })
+        espacio(raiz, 8)
         raiz.addView(boton("＋ Añadir grupo") { dialogoNuevoGrupo() })
-
         espacio(raiz, 16)
 
         val grupos = leerGrupos()
 
         if (grupos.length() == 0) {
-            raiz.addView(
-                texto("Todavía no has añadido grupos.", 16f, suave)
-            )
+            raiz.addView(texto("Todavía no has añadido grupos.", 16f, suave))
         }
 
         for (i in 0 until grupos.length()) {
@@ -309,6 +313,7 @@ class MainActivity : Activity() {
 
             if (enlace.isNotBlank()) {
                 tarjetaGrupo.addView(texto(enlace, 13f, suave))
+
                 tarjetaGrupo.addView(
                     boton("Abrir enlace") {
                         try {
@@ -337,6 +342,28 @@ class MainActivity : Activity() {
         mostrarContenido(raiz)
     }
 
+    private fun abrirWhatsApp() {
+        val paquetes = listOf("com.whatsapp.w4b", "com.whatsapp")
+
+        for (paquete in paquetes) {
+            val intent = packageManager.getLaunchIntentForPackage(paquete)
+
+            if (intent != null) {
+                try {
+                    startActivity(intent)
+                    guardarEstado(
+                        "WhatsApp abierto. Vuelve a ShadowApp para guardar el grupo."
+                    )
+                    return
+                } catch (_: Exception) {
+                    // Intenta abrir la otra versión de WhatsApp.
+                }
+            }
+        }
+
+        aviso("No encontramos WhatsApp instalado en este teléfono.")
+    }
+
     private fun dialogoNuevoGrupo() {
         val formulario = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -356,9 +383,21 @@ class MainActivity : Activity() {
         formulario.addView(nombre)
         formulario.addView(enlace)
 
+        formulario.addView(
+            texto(
+                "WhatsApp no envía automáticamente el nombre del grupo " +
+                    "a ShadowApp. Regresa aquí para guardarlo.",
+                13f,
+                suave
+            )
+        )
+
         AlertDialog.Builder(this)
             .setTitle("Añadir grupo")
             .setView(formulario)
+            .setNeutralButton("Abrir WhatsApp") { _, _ ->
+                abrirWhatsApp()
+            }
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Guardar") { _, _ ->
                 val nombreGrupo = nombre.text.toString().trim()
@@ -378,6 +417,7 @@ class MainActivity : Activity() {
                 }
 
                 val grupos = leerGrupos()
+
                 grupos.put(
                     JSONObject().apply {
                         put("nombre", nombreGrupo)
@@ -405,7 +445,9 @@ class MainActivity : Activity() {
                 val nuevos = JSONArray()
 
                 for (i in 0 until antiguos.length()) {
-                    if (i != indice) nuevos.put(antiguos.get(i))
+                    if (i != indice) {
+                        nuevos.put(antiguos.get(i))
+                    }
                 }
 
                 preferencias.edit()
@@ -421,9 +463,7 @@ class MainActivity : Activity() {
     private fun mostrarHistorial() {
         val raiz = crearPantalla("📊 Historial")
 
-        raiz.addView(
-            texto("Último estado registrado", 18f, morado, true)
-        )
+        raiz.addView(texto("Último estado registrado", 18f, morado, true))
 
         raiz.addView(
             texto(
@@ -467,6 +507,7 @@ class MainActivity : Activity() {
             setBackgroundColor(fondo)
             addView(vista)
         }
+
         setContentView(scroll)
     }
 
